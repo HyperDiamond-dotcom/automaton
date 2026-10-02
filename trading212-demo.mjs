@@ -35,19 +35,31 @@ function trading212Headers() {
   };
 }
 
-async function getAccountSummary() {
-  const response = await fetch(
-    `${BASE_URL}/equity/account/summary`,
-    {
-      headers: trading212Headers()
-    }
+function authorized(req) {
+  return (
+    BRIDGE_ACCESS_TOKEN &&
+    req.headers.authorization === `Bearer ${BRIDGE_ACCESS_TOKEN}`
   );
+}
+
+async function trading212Get(path) {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    headers: trading212Headers()
+  });
 
   if (!response.ok) {
     throw new Error(`Trading 212 returned HTTP ${response.status}`);
   }
 
   return response.json();
+}
+
+async function getAccountSummary() {
+  return trading212Get("/equity/account/summary");
+}
+
+async function getPositions() {
+  return trading212Get("/equity/positions");
 }
 
 async function checkTrading212() {
@@ -103,38 +115,14 @@ http
     }
 
     if (req.url === "/account") {
-      if (!BRIDGE_ACCESS_TOKEN) {
-        res.statusCode = 503;
-        res.end(
-          JSON.stringify(
-            {
-              error: "BRIDGE_ACCESS_TOKEN is not configured"
-            },
-            null,
-            2
-          )
-        );
-        return;
-      }
-
-      if (
-        req.headers.authorization !==
-        `Bearer ${BRIDGE_ACCESS_TOKEN}`
-      ) {
+      if (!authorized(req)) {
         res.statusCode = 401;
-        res.end(
-          JSON.stringify(
-            { error: "Unauthorized" },
-            null,
-            2
-          )
-        );
+        res.end(JSON.stringify({ error: "Unauthorized" }, null, 2));
         return;
       }
 
       try {
         const account = await getAccountSummary();
-
         res.statusCode = 200;
         res.end(
           JSON.stringify(
@@ -161,7 +149,44 @@ http
           )
         );
       }
+      return;
+    }
 
+    if (req.url === "/positions") {
+      if (!authorized(req)) {
+        res.statusCode = 401;
+        res.end(JSON.stringify({ error: "Unauthorized" }, null, 2));
+        return;
+      }
+
+      try {
+        const positions = await getPositions();
+        res.statusCode = 200;
+        res.end(
+          JSON.stringify(
+            {
+              environment: "DEMO / PRACTICE",
+              positions
+            },
+            null,
+            2
+          )
+        );
+      } catch (error) {
+        res.statusCode = 502;
+        res.end(
+          JSON.stringify(
+            {
+              error:
+                error instanceof Error
+                  ? error.message
+                  : String(error)
+            },
+            null,
+            2
+          )
+        );
+      }
       return;
     }
 
@@ -171,7 +196,8 @@ http
           service: "Trading 212 Practice Bridge",
           environment: "DEMO ONLY",
           health: "/health",
-          account: "/account"
+          account: "/account",
+          positions: "/positions"
         },
         null,
         2
