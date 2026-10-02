@@ -62,6 +62,71 @@ async function getPositions() {
   return trading212Get("/equity/positions");
 }
 
+async function readJsonBody(req) {
+  let body = "";
+
+  for await (const chunk of req) {
+    body += chunk;
+
+    if (body.length > 10000) {
+      throw new Error("Request body too large");
+    }
+  }
+
+  if (!body) {
+    return {};
+  }
+
+  return JSON.parse(body);
+}
+
+function makeTradePlan(input) {
+  const ticker =
+    typeof input.ticker === "string"
+      ? input.ticker.trim().toUpperCase()
+      : "";
+
+  const side =
+    typeof input.side === "string"
+      ? input.side.trim().toUpperCase()
+      : "";
+
+  const quantity = Number(input.quantity);
+
+  const errors = [];
+
+  if (!ticker) {
+    errors.push("ticker is required");
+  }
+
+  if (!["BUY", "SELL"].includes(side)) {
+    errors.push("side must be BUY or SELL");
+  }
+
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    errors.push("quantity must be greater than zero");
+  }
+
+  if (errors.length > 0) {
+    return {
+      valid: false,
+      errors
+    };
+  }
+
+  return {
+    valid: true,
+    dryRun: true,
+    environment: "DEMO / PRACTICE",
+    orderType: "MARKET",
+    ticker,
+    side,
+    quantity,
+    message:
+      "DRY RUN ONLY — no order has been sent to Trading 212."
+  };
+}
+
 async function checkTrading212() {
   if (!API_KEY || !API_SECRET) {
     status = {
@@ -108,13 +173,13 @@ http
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Cache-Control", "no-store");
 
-    if (req.url === "/health") {
+    if (req.url === "/health" && req.method === "GET") {
       res.statusCode = status.connected ? 200 : 503;
       res.end(JSON.stringify(status, null, 2));
       return;
     }
 
-    if (req.url === "/account") {
+    if (req.url === "/account" && req.method === "GET") {
       if (!authorized(req)) {
         res.statusCode = 401;
         res.end(JSON.stringify({ error: "Unauthorized" }, null, 2));
@@ -123,6 +188,7 @@ http
 
       try {
         const account = await getAccountSummary();
+
         res.statusCode = 200;
         res.end(
           JSON.stringify(
@@ -149,10 +215,11 @@ http
           )
         );
       }
+
       return;
     }
 
-    if (req.url === "/positions") {
+    if (req.url === "/positions" && req.method === "GET") {
       if (!authorized(req)) {
         res.statusCode = 401;
         res.end(JSON.stringify({ error: "Unauthorized" }, null, 2));
@@ -161,6 +228,7 @@ http
 
       try {
         const positions = await getPositions();
+
         res.statusCode = 200;
         res.end(
           JSON.stringify(
@@ -187,17 +255,53 @@ http
           )
         );
       }
+
       return;
     }
 
+    if (req.url === "/plan" && req.method === "POST") {
+      if (!authorized(req)) {
+        res.statusCode = 401;
+        res.end(JSON.stringify({ error: "Unauthorized" }, null, 2));
+        return;
+      }
+
+      try {
+        const input = await readJsonBody(req);
+        const plan = makeTradePlan(input);
+
+        res.statusCode = plan.valid ? 200 : 400;
+        res.end(JSON.stringify(plan, null, 2));
+      } catch (error) {
+        res.statusCode = 400;
+        res.end(
+          JSON.stringify(
+            {
+              error:
+                error instanceof Error
+                  ? error.message
+                  : String(error)
+            },
+            null,
+            2
+          )
+        );
+      }
+
+      return;
+    }
+
+    res.statusCode = 200;
     res.end(
       JSON.stringify(
         {
           service: "Trading 212 Practice Bridge",
           environment: "DEMO ONLY",
-          health: "/health",
-          account: "/account",
-          positions: "/positions"
+          health: "GET /health",
+          account: "GET /account",
+          positions: "GET /positions",
+          tradePlanner: "POST /plan",
+          tradingEnabled: false
         },
         null,
         2
