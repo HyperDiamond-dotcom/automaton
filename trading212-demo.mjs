@@ -8,8 +8,9 @@ const BASE_URL =
 
 const API_KEY = process.env.T212_API_KEY || "";
 const API_SECRET = process.env.T212_API_SECRET || "";
+const BRIDGE_ACCESS_TOKEN = process.env.BRIDGE_ACCESS_TOKEN || "";
 
-// SAFETY LOCK — this program will only talk to Trading 212 Demo.
+// SAFETY LOCK — DEMO / PRACTICE ONLY.
 if (BASE_URL !== "https://demo.trading212.com/api/v0") {
   throw new Error(
     "Safety lock: only the Trading 212 DEMO environment is permitted."
@@ -23,6 +24,32 @@ let status = {
   error: "Waiting for Trading 212 credentials"
 };
 
+function trading212Headers() {
+  const credentials = Buffer
+    .from(`${API_KEY}:${API_SECRET}`)
+    .toString("base64");
+
+  return {
+    Authorization: `Basic ${credentials}`,
+    Accept: "application/json"
+  };
+}
+
+async function getAccountSummary() {
+  const response = await fetch(
+    `${BASE_URL}/equity/account/summary`,
+    {
+      headers: trading212Headers()
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Trading 212 returned HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
 async function checkTrading212() {
   if (!API_KEY || !API_SECRET) {
     status = {
@@ -34,26 +61,8 @@ async function checkTrading212() {
     return;
   }
 
-  const credentials = Buffer
-    .from(`${API_KEY}:${API_SECRET}`)
-    .toString("base64");
-
   try {
-    const response = await fetch(
-      `${BASE_URL}/equity/account/summary`,
-      {
-        headers: {
-          Authorization: `Basic ${credentials}`,
-          Accept: "application/json"
-        }
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Trading 212 returned HTTP ${response.status}`);
-    }
-
-    await response.json();
+    await getAccountSummary();
 
     status = {
       connected: true,
@@ -71,7 +80,10 @@ async function checkTrading212() {
       error: error instanceof Error ? error.message : String(error)
     };
 
-    console.error("Trading 212 DEMO connection failed:", status.error);
+    console.error(
+      "Trading 212 DEMO connection failed:",
+      status.error
+    );
   }
 }
 
@@ -80,8 +92,9 @@ await checkTrading212();
 setInterval(checkTrading212, 5 * 60 * 1000);
 
 http
-  .createServer((req, res) => {
+  .createServer(async (req, res) => {
     res.setHeader("Content-Type", "application/json");
+    res.setHeader("Cache-Control", "no-store");
 
     if (req.url === "/health") {
       res.statusCode = status.connected ? 200 : 503;
@@ -89,12 +102,80 @@ http
       return;
     }
 
+    if (req.url === "/account") {
+      if (!BRIDGE_ACCESS_TOKEN) {
+        res.statusCode = 503;
+        res.end(
+          JSON.stringify(
+            {
+              error: "BRIDGE_ACCESS_TOKEN is not configured"
+            },
+            null,
+            2
+          )
+        );
+        return;
+      }
+
+      if (
+        req.headers.authorization !==
+        `Bearer ${BRIDGE_ACCESS_TOKEN}`
+      ) {
+        res.statusCode = 401;
+        res.end(
+          JSON.stringify(
+            { error: "Unauthorized" },
+            null,
+            2
+          )
+        );
+        return;
+      }
+
+      try {
+        const account = await getAccountSummary();
+
+        res.statusCode = 200;
+        res.end(
+          JSON.stringify(
+            {
+              environment: "DEMO / PRACTICE",
+              account
+            },
+            null,
+            2
+          )
+        );
+      } catch (error) {
+        res.statusCode = 502;
+        res.end(
+          JSON.stringify(
+            {
+              error:
+                error instanceof Error
+                  ? error.message
+                  : String(error)
+            },
+            null,
+            2
+          )
+        );
+      }
+
+      return;
+    }
+
     res.end(
-      JSON.stringify({
-        service: "Trading 212 Practice Bridge",
-        environment: "DEMO ONLY",
-        health: "/health"
-      })
+      JSON.stringify(
+        {
+          service: "Trading 212 Practice Bridge",
+          environment: "DEMO ONLY",
+          health: "/health",
+          account: "/account"
+        },
+        null,
+        2
+      )
     );
   })
   .listen(PORT, "0.0.0.0", () => {
