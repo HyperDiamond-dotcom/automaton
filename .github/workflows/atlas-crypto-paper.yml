@@ -1,0 +1,16 @@
+name: Atlas crypto paper safety
+on:
+  push:
+    paths: [ 'atlas/**', '.github/workflows/atlas-crypto-paper.yml' ]
+  pull_request:
+    paths: [ 'atlas/**', '.github/workflows/atlas-crypto-paper.yml' ]
+jobs:
+  paper-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check atlas/crypto-paper.mjs
+      - run: node --test atlas/crypto-paper.test.mjs
