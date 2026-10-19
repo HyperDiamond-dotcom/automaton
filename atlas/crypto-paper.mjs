@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 // ATLAS CRYPTO: paper simulation only; never connects to private exchange APIs.
@@ -142,8 +143,8 @@ export async function marketData(now=Date.now(),fetcher=fetch) {
   for (const sym of SYMBOLS) {
     const endpoint=API+'/products/'+sym;
     const [a,b]=await Promise.all([
-      fetcher(endpoint+'/candles?granularity=900',{headers:{Accept:'application/json'}}),
-      fetcher(endpoint+'/ticker',{headers:{Accept:'application/json'}})
+      fetcher(endpoint+'/candles?granularity=900',{headers:{Accept:'application/json'},signal:AbortSignal.timeout(15000)}),
+      fetcher(endpoint+'/ticker',{headers:{Accept:'application/json'},signal:AbortSignal.timeout(15000)})
     ]);
     if (!a.ok||!b.ok) throw Error('Public market API failed for '+sym);
     const bars=candles(await a.json(),now), q=quote(await b.json(),now);
@@ -178,7 +179,8 @@ async function main() {
   const command=process.argv[2]||'once';
   if (!['run','once'].includes(command)) throw Error('Usage: once or run');
   fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});
-  const lock=file+'.lock';
+  // The lock lives on ephemeral storage so a container crash never bricks the persisted portfolio.
+  const lock=path.join(os.tmpdir(),'atlas-crypto-paper.lock');
   const handle=fs.openSync(lock,'wx',0o600);
   try {
     do {
