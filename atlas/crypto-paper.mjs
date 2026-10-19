@@ -136,7 +136,7 @@ export function evaluate(s,market,now=Date.now()) {
     }
     s.processed[sym]=Math.max(s.processed[sym]||0,barTime);
     decisions.push({symbol:sym,signal:sig,action,barTime,council:review});
-    if(barTime>(s.agentEvents.at(-1)?.barTime||0)||s.agentEvents.at(-1)?.symbol!==sym){
+    if(!s.agentEvents.slice(-SYMBOLS.length).some(event=>event.barTime===barTime&&event.symbol===sym)){
       s.agentEvents.push({when,barTime,symbol:sym,signal:sig,action,councilVerdict:review.verdict,vetoes:review.vetoes});
       if(s.agentEvents.length>5000) s.agentEvents.splice(0,s.agentEvents.length-5000);
     }
