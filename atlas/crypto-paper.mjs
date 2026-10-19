@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {council} from './atlas-council.mjs';
 
 // ATLAS CRYPTO: paper simulation only; never connects to private exchange APIs.
 const API = 'https://api.exchange.coinbase.com';
@@ -116,9 +117,11 @@ export function evaluate(s,market,now=Date.now()) {
     s.halted=true; s.haltReason='PORTFOLIO_DRAWDOWN_5_PERCENT';
   }
   const decisions=[];
+  s.agentEvents ||= [];
   for (const sym of SYMBOLS) {
     const m=market[sym], barTime=m.bars.at(-1).time, sig=signal(m.bars);
     const p=s.positions[sym], when=new Date(now).toISOString();
+    const review=council({bars:m.bars,q:m.q,now,state:s,symbol:sym,marks,signal:sig});
     let action='HOLD';
     if (p) {
       const change=m.q.price/p.entry-1;
@@ -128,11 +131,15 @@ export function evaluate(s,market,now=Date.now()) {
       else if (change>=CFG.take) reason='TAKE_6_PERCENT';
       else if (sig==='SELL'&&barTime>(s.processed[sym]||0)) reason='SMA_DOWN';
       if (reason&&sell(s,sym,m.q,when,reason)) action='PAPER_SELL';
-    } else if (!s.halted && sig==='BUY' && barTime>(s.processed[sym]||0)) {
-      if (buy(s,sym,m.q,when)) action='PAPER_BUY';
+    } else if (!s.halted && sig==='BUY' && review.approved && barTime>(s.processed[sym]||0)) {
+      if (buy(s,sym,m.q,when,'UNANIMOUS_AGENT_COUNCIL')) action='PAPER_BUY';
     }
     s.processed[sym]=Math.max(s.processed[sym]||0,barTime);
-    decisions.push({symbol:sym,signal:sig,action,barTime});
+    decisions.push({symbol:sym,signal:sig,action,barTime,council:review});
+    if(barTime>(s.agentEvents.at(-1)?.barTime||0)||s.agentEvents.at(-1)?.symbol!==sym){
+      s.agentEvents.push({when,barTime,symbol:sym,signal:sig,action,councilVerdict:review.verdict,vetoes:review.vetoes});
+      if(s.agentEvents.length>5000) s.agentEvents.splice(0,s.agentEvents.length-5000);
+    }
   }
   s.lastRun=new Date(now).toISOString();
   return {mode:'PAPER',at:s.lastRun,equity:equity(s,marks),cash:s.cash,
