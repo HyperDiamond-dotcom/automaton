@@ -1,0 +1,14 @@
+{
+  "name": "atlas-crypto-paper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node crypto-paper.mjs run",
+    "build": "node --check crypto-paper.mjs && node --test crypto-paper.test.mjs",
+    "test": "node --test crypto-paper.test.mjs"
+  }
+}
