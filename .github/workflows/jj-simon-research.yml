@@ -1,0 +1,52 @@
+name: JJ Simon NQ research (offline rules + optional historical replay)
+on:
+  push:
+    paths:
+      - 'research/jj-simon/**'
+      - '.github/workflows/jj-simon-research.yml'
+  pull_request:
+    paths:
+      - 'research/jj-simon/**'
+      - '.github/workflows/jj-simon-research.yml'
+  workflow_dispatch:
+    inputs:
+      historical_replay:
+        description: 'Download public third-party 2026 NQ one-minute bars and run the historical research replay'
+        required: false
+        default: true
+        type: boolean
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    permissions: {contents: read}
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check research/jj-simon/engine.mjs
+      - run: node --test research/jj-simon/*.test.mjs
+  historical:
+    if: github.event_name == 'workflow_dispatch' && inputs.historical_replay
+    runs-on: ubuntu-latest
+    permissions: {contents: read}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Download cited third-party NQ one-minute CSV (not licensed/exchange verified)
+        run: |
+          curl --fail --location --retry 2 --max-time 180 --max-filesize 60000000 \
+            'https://raw.githubusercontent.com/kfccolonel1/BARS/main/NQ/1min/NQ_1min_2026-01-01_2026-10-08_stitched.csv' \
+            -o nq-2026.csv
+          sha256sum nq-2026.csv | tee data-sha256.txt
+      - name: Run development and held-out separately
+        run: node research/jj-simon/engine.mjs nq-2026.csv research-results.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jj-simon-nq-2026-educational-replay
+          path: |
+            research-results.json
+            data-sha256.txt
+          retention-days: 7
