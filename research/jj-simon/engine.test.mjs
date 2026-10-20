@@ -48,3 +48,9 @@ test('strategy allowlist and small datasets fail closed',()=>{
  const b=Array.from({length:110},(_,i)=>candle(i,100,100));
  assert.throws(()=>runReplay(b,{strategy:'LIVE'}));
 });
+
+test('accept dataset UTC offsets without colon (New York standard time)',()=>{
+ const b=parseBar('2026-01-02 09:30:00-0500,25000,25003,24998,25002,1,a,2026-01-02,NY',cols);
+ assert.equal(b.minute,570);
+ assert.equal(new Date(b.time).toISOString(),'2026-01-02T14:30:00.000Z');
+});
