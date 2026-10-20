@@ -17,9 +17,9 @@ export function parseBar(line, columns){
   const parts=line.replace(/\r$/,'').split(',');
   const find=n=>parts[columns.indexOf(n)];
   const original=String(find('datetime')||'').trim();
-  const match=/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2}):(\d{2})([+-]\d{2}:\d{2})$/.exec(original);
+  const match=/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2}):(\d{2})([+-]\d{2}:?\d{2})$/.exec(original);
   if(!match)throw Error('Data must contain New York local timestamps with explicit offsets: '+original);
-  const iso=match[1]+'T'+match[2]+':'+match[3]+':'+match[4]+match[5].replace(/^([+-]\\d{2})(\\d{2})$/,'$1:$2');
+  const iso=match[1]+'T'+match[2]+':'+match[3]+':'+match[4]+match[5].replace(/^([+-]\d{2})(\d{2})$/,'$1:$2');
   const time=Date.parse(iso),[open,high,low,close]=['open','high','low','close'].map(n=>Number(find(n)));
   if(!finite(time)||![open,high,low,close].every(x=>finite(x)&&x>0)||
      low>high||low>open||low>close||high<open||high<close)throw Error('Invalid OHLC row: '+original);
