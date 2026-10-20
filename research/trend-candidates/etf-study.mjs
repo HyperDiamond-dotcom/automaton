@@ -13,7 +13,7 @@ export const TICKERS=['QQQ','SPY','IWM','GLD','TLT'];
 export const WINDOWS=[
   {name:'2017–2022 development',from:'2017-01-03',to:'2022-12-30'},
   {name:'2023–2025 later sample',from:'2023-01-03',to:'2025-12-31'},
-  {name:'2026 prospective-on-paper holdout',from:'2026-01-02',to:'2026-10-19'}
+  {name:'2026 retrospective holdout',from:'2026-01-02',to:'2026-10-19'}
 ];
 export function yahooUrl(ticker) {
   if(!TICKERS.includes(ticker))throw Error('Invalid pre-registered ticker');
@@ -162,10 +162,19 @@ export function passive(bars,window){
   const first=bars.find(b=>b.day>=window.from),last=[...bars].reverse().find(b=>b.day<=window.to);
   if(!first||!last)throw Error('Missing window');
   const buy=buyFill(first.open),shares=Math.floor((f.startingUSD*f.capitalFraction-f.commissionPerSideUSD)/buy*1000)/1000;
-  const final=f.startingUSD-shares*buy-f.commissionPerSideUSD+
-    shares*sellFill(last.close)-f.commissionPerSideUSD;
+  const remaining=f.startingUSD-shares*buy-f.commissionPerSideUSD;
+  let peak=f.startingUSD,maxDD=0;
+  for(const b of bars){
+    if(b.day<window.from||b.day>window.to)continue;
+    const mark=remaining+shares*b.close;
+    peak=Math.max(peak,mark);
+    maxDD=Math.max(maxDD,(peak-mark)/peak);
+  }
+  const final=remaining+shares*sellFill(last.close)-f.commissionPerSideUSD;
+  maxDD=Math.max(maxDD,(peak-final)/peak);
   return {ticker:window.ticker,period:window.name,strategy:'passive-35%-allocation',
     netUSD:Number((final-f.startingUSD).toFixed(2)),
+    maxMarkDrawdownPct:Number((maxDD*100).toFixed(3)),
     returnPct:Number(((final/f.startingUSD-1)*100).toFixed(3))};
 }
 export async function run(out='research-etf-results.json'){
@@ -187,7 +196,7 @@ export async function run(out='research-etf-results.json'){
     'No dividends, financing income, taxes, FX, corporate actions, broker liquidity or real fills',
     'Long-only US ETFs, independent allocation per ticker rather than actual combined portfolio',
     'Risk sizing uses fractional shares; simulated trades only; no predictive claims',
-    '2017–2022 and 2023–2025 retrospective, 2026 later evaluation; no live forward test'
+    '2017–2022, 2023–2025 and 2026 all retrospective; the 2026 sample is a holdout only relative to predeclared parameters, not prospective live data'
   ]};
   await writeFile(out,JSON.stringify(doc,null,2));
   console.log(JSON.stringify({metadata,summary:results.map(({ticker,period,strategy,trades,netUSD,returnPct,maxMarkDrawdownPct,halted,blocked})=>

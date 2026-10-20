@@ -10,7 +10,8 @@ test('Heikin-Ashi never changes actual market OHLC inputs',()=>{
  const out=analyse(candles);
  assert.equal(out[0].open,candles[0].open);
  assert.equal(out[0].close,candles[0].close);
- assert.notEqual(out[0].haStreak,0);
+ assert.equal(out[0].haStreak,0); // Equal synthetic open/close is a valid neutral first candle
+  assert.ok(Number.isInteger(out[1].haStreak));
 });
 test('all strategies return bounded test outputs without executing an order',()=>{
  const ds=analyse(candles);
