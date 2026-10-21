@@ -46,6 +46,12 @@ export async function fetchDemoOrders(opts={}) {
     url=validateHistoryPath(url);
     if(visited.has(url)) throw Error('Repeated pagination cursor');
     visited.add(url);
+    // Historical-order API rate limit: at most six requests/minute.
+    // Real requests pause between pages; injected test fetchers are not delayed.
+    if(pages>0 && (opts.sleep || fetcher===fetch)) {
+      const sleep=opts.sleep || (ms=>new Promise(resolve=>setTimeout(resolve,ms)));
+      await sleep(11000);
+    }
     const data=await getJson(url,auth,fetcher);
     if(!Array.isArray(data?.items)) throw Error('Invalid broker history');
     for(const item of data.items) {
