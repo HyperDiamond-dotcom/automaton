@@ -29,3 +29,14 @@ test("rejects invalid OHLC input", () => {
 test("rejects insufficient data", () => {
   assert.throws(() => analyzeCandles(fixture().slice(0, 5), now, granularity), /insufficient_closed_candles/);
 });
+
+test("rejects missing candles instead of interpolating a breakout", () => {
+  const rows = fixture();
+  rows.splice(40, 1);
+  assert.throws(() => analyzeCandles(rows, now, granularity), /missing_candle_gap/);
+});
+test("rejects duplicated time buckets", () => {
+  const rows = fixture();
+  rows[40] = [...rows[39]];
+  assert.throws(() => analyzeCandles(rows, now, granularity), /duplicate_candle/);
+});

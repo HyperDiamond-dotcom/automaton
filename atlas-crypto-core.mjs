@@ -14,6 +14,7 @@ export function analyzeCandles(rows, nowMs = Date.now(), granularitySec = 900) {
     .sort((a, b) => a.time - b.time);
   for (let i = 1; i < candles.length; i++) {
     if (candles[i].time === candles[i - 1].time) throw new Error("duplicate_candle");
+    if (candles[i].time - candles[i - 1].time !== granularitySec) throw new Error("missing_candle_gap");
   }
   if (candles.length < 50) throw new Error("insufficient_closed_candles");
   const last = candles.at(-1);
