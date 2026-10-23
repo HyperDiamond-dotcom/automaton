@@ -32,3 +32,37 @@ test("failed broker reads cannot produce a health pass",async()=>{
   const fetcher=async()=>({ok:false,status:401});
   await assert.rejects(runAudit({key:"mock",secret:"mock"},fetcher),/demo_api_http_401/);
 });
+
+test("rejects unsafe URL userinfo and invalid history parameters",()=>{
+  for(const path of ["//demo.trading212.com/api/v0/equity/positions",
+    "https://user:password@demo.trading212.com/api/v0/equity/positions",
+    "/api/v0/equity/history/orders?limit=51",
+    "/api/v0/equity/history/orders?limit=2&limit=3",
+    "/api/v0/equity/history/orders?untrusted=1"])
+    assert.throws(()=>safeUrl(path));
+});
+test("caps broker history at three pages and paces requests",async()=>{
+  const delays=[],visited=[];
+  const fetcher=async(url)=>{
+    const path=new URL(url).pathname;visited.push(path);
+    if(path.endsWith("/positions")||path.endsWith("/equity/orders"))
+      return {ok:true,json:async()=>[]};
+    const n=visited.filter(x=>x.endsWith("/history/orders")).length;
+    return {ok:true,json:async()=>({items:[],nextPagePath:n<3?
+      "/api/v0/equity/history/orders?limit=50&cursor="+n:null})};
+  };
+  const report=await runAudit({key:"test",secret:"test"},fetcher,{sleep:async ms=>delays.push(ms)});
+  assert.equal(report.historyPagesRetrieved,3);
+  assert.deepEqual(delays,[1200,1200,11000,11000]);
+  assert.equal(report.liveReady,false);
+});
+test("history truncation is explicitly marked unverified",async()=>{
+  const fetcher=async(url)=>{
+    const path=new URL(url).pathname;
+    return {ok:true,json:async()=>path.endsWith("/history/orders")?
+      {items:[],nextPagePath:"/api/v0/equity/history/orders?limit=50&cursor=123"}:[]};
+  };
+  const report=await runAudit({key:"test",secret:"test"},fetcher,{maxPages:1});
+  assert.equal(report.historyIncomplete,true);
+  assert.ok(report.issues.some(x=>x.code==="HISTORY_INCOMPLETE"));
+});
