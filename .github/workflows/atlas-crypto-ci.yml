@@ -1,0 +1,30 @@
+name: Atlas Crypto Paper Checks
+on:
+  push:
+    paths:
+      - 'atlas-crypto-*.mjs'
+      - '.github/workflows/atlas-crypto-ci.yml'
+  pull_request:
+    paths:
+      - 'atlas-crypto-*.mjs'
+      - '.github/workflows/atlas-crypto-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate syntax
+        run: |
+          node --check atlas-crypto-core.mjs
+          node --check atlas-crypto-scan.mjs
+      - name: Run fail-closed unit tests
+        run: node --test atlas-crypto-core.test.mjs
+      - name: Read-only BTC/ETH public data smoke test
+        run: node atlas-crypto-scan.mjs
