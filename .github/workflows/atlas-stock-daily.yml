@@ -1,0 +1,27 @@
+name: Atlas US Stocks Daily Read-Only
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "25 22 * * 1-5"
+  push:
+    paths:
+      - 'atlas-stock-daily*.mjs'
+      - '.github/workflows/atlas-stock-daily.yml'
+permissions:
+  contents: read
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate offline risk and bar-closing behaviour
+        run: |
+          node --check atlas-stock-daily-core.mjs
+          node --check atlas-stock-daily.mjs
+          node --test atlas-stock-daily.test.mjs
+      - name: Screen US stock and ETF daily closes, no account access
+        run: node atlas-stock-daily.mjs
