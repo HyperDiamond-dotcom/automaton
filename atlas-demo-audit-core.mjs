@@ -22,7 +22,7 @@ export async function getDemo(path, credentials, fetcher = fetch) {
   if (!credentials?.key || !credentials?.secret) throw Error("demo_credentials_missing");
   const timer = AbortSignal.timeout(15000);
   const headers = {Authorization:"Basic "+Buffer.from(credentials.key+":"+credentials.secret).toString("base64"),Accept:"application/json"};
-  const r = await fetcher(url,{method:"GET",headers,signal:timer});
+  const r = await fetcher(url,{method:"GET",redirect:"error",headers,signal:timer});
   if (!r.ok) throw Error("demo_api_http_"+r.status);
   return r.json();
 }
