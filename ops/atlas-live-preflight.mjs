@@ -23,6 +23,7 @@ async function getLive(path, credentials, transport) {
   const token = Buffer.from(credentials.key + ":" + credentials.secret).toString("base64");
   const response = await transport(url, {
     method: "GET",
+    redirect: "error", // Do not follow redirects with broker credentials.
     headers: { Authorization: "Basic " + token, Accept: "application/json" },
     signal: AbortSignal.timeout(15000)
   });
