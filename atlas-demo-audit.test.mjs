@@ -17,7 +17,7 @@ test("detects unmatched positions, duplicate orders and stop-coverage risk",()=>
 test("allows only GET and DEMO for all requests",async()=>{
   const seen=[];
   const fetcher=async(url,options)=>{
-    seen.push({url,method:options.method});
+    seen.push({url,method:options.method,redirect:options.redirect});
     const path=new URL(url).pathname;
     const body=path.endsWith("/positions")?[{ticker:"AAPL_US_EQ",quantity:1}]:
       path.endsWith("/equity/orders")?[]:{items:[],nextPagePath:null};
@@ -25,7 +25,7 @@ test("allows only GET and DEMO for all requests",async()=>{
   };
   const report=await runAudit({key:"mock",secret:"mock"},fetcher);
   assert.equal(seen.length,3);
-  assert.ok(seen.every(x=>x.method==="GET"&&x.url.startsWith("https://demo.trading212.com/")));
+  assert.ok(seen.every(x=>x.method==="GET"&&x.redirect==="error"&&x.url.startsWith("https://demo.trading212.com/")));
   assert.equal(report.liveReady,false);
 });
 test("failed broker reads cannot produce a health pass",async()=>{
@@ -65,4 +65,14 @@ test("history truncation is explicitly marked unverified",async()=>{
   const report=await runAudit({key:"test",secret:"test"},fetcher,{maxPages:1});
   assert.equal(report.historyIncomplete,true);
   assert.ok(report.issues.some(x=>x.code==="HISTORY_INCOMPLETE"));
+});
+
+
+test("redirect responses cannot count as a healthy broker read", async () => {
+  const fetcher = async (_url, options) => {
+    assert.equal(options.method, "GET");
+    assert.equal(options.redirect, "error");
+    return {ok:false,status:302};
+  };
+  await assert.rejects(runAudit({key:"mock",secret:"mock"},fetcher), /demo_api_http_302/);
 });
