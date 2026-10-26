@@ -1,3 +1,24 @@
+# Atlas operational evidence — 26 October 2026
+
+## Confirmed Railway crypto recovery
+- The existing `atlas-crypto-paper` service's earlier skipped deployment was repaired by reconnecting its GitHub source to branch `atlas/crypto-paper-20261022`.
+- Railway deployment `18271512-a25b-41e3-9741-f09b53654c55` reached **SUCCESS** at **2026-10-26 14:32:22 UTC**.
+- Railway's first scheduled cron execution **succeeded** at **2026-10-26 14:33:46 UTC**. Runtime logs confirmed valid BTC-USD and ETH-USD public Coinbase candles, both `status: OK` and `signal: NO_ENTRY`.
+- Both signals recorded `ordersSubmitted: 0`, `executionAllowed: false`. No crypto keys, wallet or real-money order path were added.
+- Separately verified the branch's crypto syntax and fail-closed unit suite in isolated Node.js: **6/6 passing**. This is **not** a claim of GitHub Actions success for the latest commit.
+- This verifies the **first** real scan only, not multiple forward-running cycles, trading profitability or order execution. Existing 15-minute cron should be evaluated over more cycles for reliability and quality.
+
+## Stock Atlas and live activation blockers remain
+- Main Railway service remains online, verifying Trading 212 DEMO and scanning positions on its persistent Railway volume.
+- Its own evidence continues to report four unsafe council approvals, no independently confirmed buy fills, and an unresolved review-only position risk alert. Stock auto-execution remains off.
+- Existing GitHub source changes alone **cannot replace** `/root/.automaton/start-atlas-v2.sh` or the installed council on the persistent volume.
+- Before any order-capable deployment: rotate credentials as a precaution following Railway's 21 October security disclosure; recover and audit the installed council code; reconcile exact broker order IDs, fills, open orders and stop coverage; enforce independently verified fail-closed risk limits, kill switch, duplicate protection and cost-aware forward evaluation.
+- The old staged main-service apt-package variable remains **uncommitted**. No live-money trading approval has been given.
+
+---
+
+## Historical 22 October checkpoint (superseded where deployment status differs)
+
 # Atlas deployment gate — 22 October 2026
 
 ## Current known facts
