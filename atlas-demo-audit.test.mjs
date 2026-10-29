@@ -97,3 +97,25 @@ test("partially filled, cancelling or replacing stops never count as full protec
     assert.equal(report.liveReady,false);
   }
 });
+
+
+test("reports exactly how many demo shares lack pending stops; never certifies trading readiness",()=>{
+  const positions=[{instrument:{ticker:"AAPL_US_EQ"},quantity:10}];
+  const pending=[{ticker:"AAPL_US_EQ",side:"SELL",type:"STOP",quantity:-4,
+    filledQuantity:0,stopPrice:90,status:"CONFIRMED"}];
+  const history=[{ticker:"AAPL_US_EQ",side:"BUY",status:"FILLED",filledQuantity:10}];
+  const report=reconcile(positions,pending,history);
+  assert.deepEqual(report.unprotectedPositions,[{ticker:"AAPL_US_EQ",positionQuantity:10,pendingStopQuantity:4,uncoveredQuantity:6}]);
+  assert.equal(report.stopCoverageSharesVerified,false);
+  assert.equal(report.stockTradeJournalReconciled,false);
+  assert.equal(report.profitabilityDemonstrated,false);
+  assert.equal(report.liveReady,false);
+});
+
+test("never ignores malformed or unlabelled broker positions",()=>{
+  const positions=[{ticker:"AAPL_US_EQ",quantity:"unknown"},{quantity:1},{ticker:"MSFT_US_EQ",quantity:null}];
+  const report=reconcile(positions,[],[]);
+  assert.ok(report.issues.some(i=>i.code==="INVALID_POSITION_DATA_REQUIRES_REVIEW"&&i.count===3));
+  assert.equal(report.stopCoverageSharesVerified,false);
+  assert.equal(report.executionAllowed,false);
+});

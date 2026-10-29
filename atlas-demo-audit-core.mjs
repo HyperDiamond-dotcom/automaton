@@ -33,10 +33,14 @@ export function reconcile(positions, pending, history, incompleteHistory=false) 
     const ticker = entry?.ticker ?? entry?.instrument?.ticker;
     return typeof ticker === "string" && ticker.trim() ? ticker : null;
   };
-  const current=positions.filter(x=>Number(x.quantity)>0);
+  // Malformed broker holdings must never vanish silently from a safety audit.
+  const malformedPositions=positions.filter(x=>x?.quantity==null || !Number.isFinite(Number(x.quantity)) ||
+    Number(x.quantity)<0 || (Number(x.quantity)>0 && !tickerOf(x)));
+  const current=positions.filter(x=>Number.isFinite(Number(x?.quantity)) && Number(x.quantity)>0);
   const historical=history.map(x=>x.order??x);
   const filled=historical.filter(x=>x.status==="FILLED"||Number(x.filledQuantity)>0);
   const issues=[];
+  if(malformedPositions.length)issues.push({code:"INVALID_POSITION_DATA_REQUIRES_REVIEW",count:malformedPositions.length});
   if(incompleteHistory)issues.push({code:"HISTORY_INCOMPLETE"});
   const unmatched=current.filter(p=>!tickerOf(p)||!filled.some(o=>tickerOf(o)===tickerOf(p)&&o.side==="BUY"));
   if(unmatched.length)issues.push({code:"POSITIONS_WITH_NO_MATCHING_BUY_IN_RETRIEVED_HISTORY",tickers:unmatched.map(tickerOf)});
@@ -46,16 +50,28 @@ export function reconcile(positions, pending, history, incompleteHistory=false) 
     if(names.has(fingerprint))issues.push({code:"POTENTIAL_DUPLICATE_PENDING_ORDER",ticker:tickerOf(o)});
     names.add(fingerprint);
   }
-  const stopReviews=current.filter(p=>{
-    const available=pending.filter(o=>tickerOf(p)&&tickerOf(o)===tickerOf(p)&&
-      o.side==="SELL"&&["STOP","STOP_LIMIT"].includes(o.type)&&
-      Number(o.stopPrice)>0&&["NEW","CONFIRMED","PARTIALLY_FILLED"].includes(o.status));
-    // Do not count executed shares or cancelling/replacing orders as stop coverage.
-    return available.reduce((sum,o)=>sum+Math.max(0,
-      Math.abs(Number(o.quantity)||0)-Math.abs(Number(o.filledQuantity)||0)),0)<Number(p.quantity);
-  }).map(tickerOf);
-  if(stopReviews.length)issues.push({code:"STOP_COVERAGE_REQUIRES_MANUAL_REVIEW",tickers:stopReviews});
-  return {mode:"DEMO_READ_ONLY",positionsObserved:current.length,pendingOrdersObserved:pending.length,historyOrdersRetrieved:history.length,brokerFilledOrdersRetrieved:filled.length,historyIncomplete:!!incompleteHistory,issues,stockTradeJournalReconciled:false,profitabilityDemonstrated:false,executionAllowed:false,liveReady:false};
+  // Quantity coverage from pending stops is observable; execution or price protection is NOT guaranteed.
+  // No orders are placed or edited here; stop prices and duration require manual review.
+  const stopCoverage=current.map(p=>{
+    const ticker=tickerOf(p),positionQuantity=Number(p.quantity);
+    const orders=pending.filter(o=>ticker && tickerOf(o)===ticker && o.side==="SELL" &&
+      ["STOP","STOP_LIMIT"].includes(o.type) && Number.isFinite(Number(o.stopPrice)) &&
+      Number(o.stopPrice)>0 && ["NEW","CONFIRMED","PARTIALLY_FILLED"].includes(o.status));
+    const pendingStopQuantity=orders.reduce((sum,o)=>{
+      const ordered=Math.abs(Number(o.quantity)),filled=Math.abs(Number(o.filledQuantity??0));
+      return sum+(Number.isFinite(ordered)&&Number.isFinite(filled)?Math.max(0,ordered-filled):0);
+    },0);
+    const round=n=>Math.round(n*1e8)/1e8;
+    return {ticker,positionQuantity:round(positionQuantity),pendingStopQuantity:round(pendingStopQuantity),
+      uncoveredQuantity:round(Math.max(0,positionQuantity-pendingStopQuantity))};
+  });
+  const unprotectedPositions=stopCoverage.filter(p=>p.uncoveredQuantity>1e-7);
+  if(unprotectedPositions.length)issues.push({code:"STOP_COVERAGE_REQUIRES_MANUAL_REVIEW",
+    tickers:unprotectedPositions.map(p=>p.ticker)});
+  return {mode:"DEMO_READ_ONLY",positionsObserved:current.length,pendingOrdersObserved:pending.length,historyOrdersRetrieved:history.length,brokerFilledOrdersRetrieved:filled.length,historyIncomplete:!!incompleteHistory,issues,stopCoverage,unprotectedPositions,
+    stopCoverageSharesVerified:unprotectedPositions.length===0&&malformedPositions.length===0,
+    stockTradeJournalReconciled:false,strategyJournalStatus:"NO_EXECUTION_JOURNAL_AVAILABLE",
+    profitabilityDemonstrated:false,profitabilityStatus:"NOT_DEMONSTRATED",executionAllowed:false,liveReady:false};
 }
 export async function runAudit(credentials,fetcher=fetch,opts={}){
   const pageLimit=opts.maxPages??3;
