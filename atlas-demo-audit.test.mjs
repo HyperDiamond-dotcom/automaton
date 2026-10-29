@@ -76,3 +76,24 @@ test("redirect responses cannot count as a healthy broker read", async () => {
   };
   await assert.rejects(runAudit({key:"mock",secret:"mock"},fetcher), /demo_api_http_302/);
 });
+
+test("reconciles realistic nested Trading 212 position tickers without treating audit as live-ready",()=>{
+  const positions=[{instrument:{ticker:"AAPL_US_EQ"},quantity:10}];
+  const pending=[{instrument:{ticker:"AAPL_US_EQ"},side:"SELL",type:"STOP",quantity:-10,
+    filledQuantity:0,stopPrice:90,status:"NEW"}];
+  const history=[{order:{ticker:"AAPL_US_EQ",side:"BUY",status:"FILLED",filledQuantity:10}}];
+  const report=reconcile(positions,pending,history);
+  assert.equal(report.issues.length,0);
+  assert.equal(report.executionAllowed,false);
+  assert.equal(report.liveReady,false);
+});
+test("partially filled, cancelling or replacing stops never count as full protection",()=>{
+  const positions=[{instrument:{ticker:"GOOGL_US_EQ"},quantity:10}];
+  const order={instrument:{ticker:"GOOGL_US_EQ"},side:"SELL",type:"STOP",
+    quantity:-10,filledQuantity:8,stopPrice:80,status:"PARTIALLY_FILLED"};
+  for(const status of ["PARTIALLY_FILLED","CANCELLING","REPLACING"]){
+    const report=reconcile(positions,[{...order,status}],[]);
+    assert.ok(report.issues.some(i=>i.code==="STOP_COVERAGE_REQUIRES_MANUAL_REVIEW"));
+    assert.equal(report.liveReady,false);
+  }
+});
