@@ -28,23 +28,32 @@ export async function getDemo(path, credentials, fetcher = fetch) {
 }
 export function reconcile(positions, pending, history, incompleteHistory=false) {
   if (![positions,pending,history].every(Array.isArray)) throw Error("invalid_broker_response");
+  // The broker nests position tickers under instrument; orders may be flat.
+  const tickerOf = entry => {
+    const ticker = entry?.ticker ?? entry?.instrument?.ticker;
+    return typeof ticker === "string" && ticker.trim() ? ticker : null;
+  };
   const current=positions.filter(x=>Number(x.quantity)>0);
   const historical=history.map(x=>x.order??x);
   const filled=historical.filter(x=>x.status==="FILLED"||Number(x.filledQuantity)>0);
   const issues=[];
   if(incompleteHistory)issues.push({code:"HISTORY_INCOMPLETE"});
-  const unmatched=current.filter(p=>!filled.some(o=>o.ticker===p.ticker&&(o.side==="BUY"||o.type==="BUY")));
-  if(unmatched.length)issues.push({code:"POSITIONS_WITH_NO_MATCHING_BUY_IN_RETRIEVED_HISTORY",tickers:unmatched.map(x=>x.ticker)});
+  const unmatched=current.filter(p=>!tickerOf(p)||!filled.some(o=>tickerOf(o)===tickerOf(p)&&o.side==="BUY"));
+  if(unmatched.length)issues.push({code:"POSITIONS_WITH_NO_MATCHING_BUY_IN_RETRIEVED_HISTORY",tickers:unmatched.map(tickerOf)});
   const names=new Set();
   for(const o of pending){
-    const fingerprint=[o.ticker,o.side,o.type,o.quantity,o.limitPrice,o.stopPrice].join("|");
-    if(names.has(fingerprint))issues.push({code:"POTENTIAL_DUPLICATE_PENDING_ORDER",ticker:o.ticker});
+    const fingerprint=[tickerOf(o),o.side,o.type,o.quantity,o.limitPrice,o.stopPrice].join("|");
+    if(names.has(fingerprint))issues.push({code:"POTENTIAL_DUPLICATE_PENDING_ORDER",ticker:tickerOf(o)});
     names.add(fingerprint);
   }
   const stopReviews=current.filter(p=>{
-    const available=pending.filter(o=>o.ticker===p.ticker&&o.side==="SELL"&&["STOP","STOP_LIMIT"].includes(o.type)&&Number(o.stopPrice)>0&& !["CANCELLED","REJECTED","FILLED"].includes(o.status));
-    return available.reduce((sum,o)=>sum+Math.abs(Number(o.quantity)||0),0)<Number(p.quantity);
-  }).map(p=>p.ticker);
+    const available=pending.filter(o=>tickerOf(p)&&tickerOf(o)===tickerOf(p)&&
+      o.side==="SELL"&&["STOP","STOP_LIMIT"].includes(o.type)&&
+      Number(o.stopPrice)>0&&["NEW","CONFIRMED","PARTIALLY_FILLED"].includes(o.status));
+    // Do not count executed shares or cancelling/replacing orders as stop coverage.
+    return available.reduce((sum,o)=>sum+Math.max(0,
+      Math.abs(Number(o.quantity)||0)-Math.abs(Number(o.filledQuantity)||0)),0)<Number(p.quantity);
+  }).map(tickerOf);
   if(stopReviews.length)issues.push({code:"STOP_COVERAGE_REQUIRES_MANUAL_REVIEW",tickers:stopReviews});
   return {mode:"DEMO_READ_ONLY",positionsObserved:current.length,pendingOrdersObserved:pending.length,historyOrdersRetrieved:history.length,brokerFilledOrdersRetrieved:filled.length,historyIncomplete:!!incompleteHistory,issues,stockTradeJournalReconciled:false,profitabilityDemonstrated:false,executionAllowed:false,liveReady:false};
 }
