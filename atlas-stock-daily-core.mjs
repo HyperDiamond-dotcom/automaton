@@ -41,3 +41,17 @@ export function analyzeDailyChart(payload, symbol, nowMs=Date.now()) {
     avgUsdVolume20:Math.round(avgUsdVolume20),signal,
     barsUsed:rows.length,ordersSubmitted:0,executionAllowed:false,realMoney:false};
 }
+
+// Retry only temporary network/provider failures. Invalid symbols and bad data still fail closed.
+export async function retryMarketDataRequest(task,{sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),attempts=3,initialDelayMs=1500}={}){
+  if(typeof task!=="function"||!Number.isInteger(attempts)||attempts<1||attempts>5||!Number.isFinite(initialDelayMs)||initialDelayMs<0) throw Error("invalid_retry_settings");
+  for(let attempt=1;attempt<=attempts;attempt++){
+    try{return await task();}
+    catch(error){
+      const message=String(error?.message??"");
+      const retryable=error instanceof TypeError||["AbortError","TimeoutError"].includes(error?.name)||/^market_data_http_(408|429|500|502|503|504)$/.test(message)||/fetch failed/i.test(message);
+      if(!retryable||attempt===attempts)throw error;
+      await sleep(initialDelayMs*2**(attempt-1));
+    }
+  }
+}

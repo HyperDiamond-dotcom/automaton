@@ -1,6 +1,6 @@
 // Read-only, end-of-day research. Unofficial Yahoo chart endpoint may change or rate-limit.
 // No financial account API, credentials, trading functions, or exchange orders.
-import {STOCKS,analyzeDailyChart} from "./atlas-stock-daily-core.mjs";
+import {STOCKS,analyzeDailyChart,retryMarketDataRequest} from "./atlas-stock-daily-core.mjs";
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function fetchChart(symbol) {
   const url="https://query1.finance.yahoo.com/v8/finance/chart/"+
@@ -16,7 +16,7 @@ const results=new Array(STOCKS.length);
 await Promise.all(Array.from({length:2},async()=>{
   while(next<STOCKS.length){
     const i=next++, symbol=STOCKS[i];
-    try { results[i]={status:"OK",...analyzeDailyChart(await fetchChart(symbol),symbol)}; }
+    try { const chart=await retryMarketDataRequest(()=>fetchChart(symbol)); results[i]={status:"OK",...analyzeDailyChart(chart,symbol)}; }
     catch(e){results[i]={symbol,status:"FAILED",reason:String(e?.message||e)};}
     await sleep(650);
   }

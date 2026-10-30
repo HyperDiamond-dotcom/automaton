@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {STOCKS,analyzeDailyChart} from "./atlas-stock-daily-core.mjs";
+import {STOCKS,analyzeDailyChart,retryMarketDataRequest} from "./atlas-stock-daily-core.mjs";
 const now=Date.parse("2026-10-26T15:00:00Z");
 function fixture() {
   const timestamps=Array.from({length:80},(_,i)=>Math.floor((now-(81-i)*86400_000)/1000));
@@ -33,4 +33,23 @@ test("ignores incomplete same-day bar before US close",()=>{
   r.indicators.quote[0].high.push(10001);
   r.indicators.quote[0].volume.push(1000000);
   assert.ok(analyzeDailyChart(f,"AAPL",now).close<1000);
+});
+
+test("recovers from temporary market-data network errors",async()=>{
+  let attempts=0;const waits=[];
+  const value=await retryMarketDataRequest(async()=>{attempts++;if(attempts<3)throw new TypeError("fetch failed");return "chart";},
+    {sleep:async ms=>waits.push(ms)});
+  assert.equal(value,"chart");assert.equal(attempts,3);assert.deepEqual(waits,[1500,3000]);
+});
+test("does not retry non-transient errors",async()=>{
+  let attempts=0;
+  await assert.rejects(()=>retryMarketDataRequest(async()=>{attempts++;throw Error("market_data_http_401");},
+    {sleep:async()=>{}}),/market_data_http_401/);
+  assert.equal(attempts,1);
+});
+test("fails closed after temporary errors persist",async()=>{
+  let attempts=0;
+  await assert.rejects(()=>retryMarketDataRequest(async()=>{attempts++;throw Error("market_data_http_429");},
+    {sleep:async()=>{}}),/market_data_http_429/);
+  assert.equal(attempts,3);
 });
