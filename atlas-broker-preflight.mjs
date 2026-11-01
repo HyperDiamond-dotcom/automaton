@@ -5,10 +5,15 @@ import {livePreflight} from "./ops/atlas-live-preflight.mjs";
 const demoCredentials={key:process.env.T212_API_KEY,secret:process.env.T212_API_SECRET};
 const liveCredentials={key:process.env.T212_LIVE_API_KEY,secret:process.env.T212_LIVE_API_SECRET};
 let failures=0;
+let riskFindings=0;
 try{
   const demo=await runAudit(demoCredentials);
   console.log(JSON.stringify({event:"atlas_demo_broker_audit",...demo}));
-  if(demo.issues.length)failures++;
+  if(demo.issues.length){
+    riskFindings=demo.issues.length;
+    console.warn(JSON.stringify({event:"atlas_demo_risk_findings",status:"REVIEW_REQUIRED",issues:demo.issues,
+      executionAllowed:false,liveAutoTradingReady:false}));
+  }
 }catch(error){
   failures++;
   console.error(JSON.stringify({event:"atlas_demo_broker_audit_failed",
@@ -29,5 +34,7 @@ if(liveCredentials.key&&liveCredentials.secret){
     brokerOrderWrites:0,automaticOrdersEnabled:false,liveAutoTradingReady:false}));
 }
 console.log(JSON.stringify({event:"atlas_broker_control_summary",
-  auditFailures:failures,automaticOrdersEnabled:false,liveAutoTradingReady:false}));
+  auditFailures:failures+riskFindings,auditExecutionFailures:failures,riskFindings,
+  riskStatus:failures?"CHECK_FAILED":riskFindings?"REVIEW_REQUIRED":"NO_FLAGGED_DEMO_RISK_ISSUES",
+  automaticOrdersEnabled:false,liveAutoTradingReady:false}));
 if(failures)process.exitCode=1;
