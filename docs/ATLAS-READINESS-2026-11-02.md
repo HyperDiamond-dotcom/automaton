@@ -1,36 +1,38 @@
-# Atlas operational readiness — 2 November 2026
+# Atlas operational readiness — 2 November 2026 (UTC)
 
-**Status: ONLINE IN MONITORING MODE; NOT READY FOR LIVE AUTO-EXECUTION.**
+**Infrastructure and public-data research operational. Real-money automated trading NOT READY.**
 
-## Confirmed runtime state (UTC)
+## Current verified Railway services
 
-- Railway project `4db37eb7-3d3b-4e63-a7c0-cfdafd888b4a`, production environment `8714d440-4058-4768-a44e-3daaef04c581`.
-- `@conway/automaton-cli` is online and volume-backed. Startup log: `DEMO trading enabled: false`, `ATLAS MONITORING MODE: core agent paused; paid AI requests disabled`.
-- Trading 212 DEMO bridge verifies roughly every 5 minutes. Main stock scanner reports ~15-minute position reviews; zero new buy submissions/fills and `autoExecute:false`.
-- Independent `atlas-broker-risk-audit` cron executes successfully. LIVE broker GET-only preflight is authenticated, showing 0 live positions and 0 pending live orders. This does NOT validate write permissions or trading readiness.
-- **Unresolved demo risk:** AAPL_US_EQ, MSFT_US_EQ and GOOGL_US_EQ have zero pending stop coverage. `STOP_COVERAGE_REQUIRES_MANUAL_REVIEW`; GOOGL's ~19% adverse demo P&L alert is `REVIEW_ONLY`. No independently reconciled strategy journal or validated profitability.
-- 31-crypto candidate research is documented in `docs/ATLAS-MARKET-EXPANSION.md`; no active crypto scan markers observed in ~15 hours of current runtime logs, so crypto activity is **unverified**.
-- 40-stock/ETF read-only daily GitHub Actions workflow exists; current execution status was not confirmed.
-- Latest deployments for both services are SUCCESS. A historical audit build failure on 31 Oct was superseded and should not be reported as a current crash.
+Project `4db37eb7-3d3b-4e63-a7c0-cfdafd888b4a`, production `8714d440-4058-4768-a44e-3daaef04c581`.
 
-## Agent roles and benefits
+| Service | State | Evidence |
+| --- | --- | --- |
+| `@conway/automaton-cli` | Online; stock portfolio DEMO monitoring only | Trading 212 demo bridge connected; 15-minute position reviews; `autoExecute:false`, zero submitted buy orders; core AI agent deliberately paused |
+| `atlas-broker-risk-audit` | Successful 15-minute cron | LIVE broker GET-only access verified; zero live positions and zero pending live orders; audit still flags unprotected demo holdings |
+| `atlas-crypto-readonly` | Successful 15-minute cron | First completed 08:47 UTC; 31 candidates, 16 qualified and scanned, 0 data errors, 0 LONG_WATCH signals, 0 orders |
+| `atlas-stock-daily-readonly` | Successful build and smoke test; normal weekday schedule restored | First smoke test completed 08:51 UTC with 40/40 symbols, 0 failures, 6 LONG_WATCH signals, 0 orders; normal cron `25 22 * * 1-5` UTC |
 
-1. **Market researcher**: broader stock and crypto signal discovery. Read-only until strategy quality is proven.
-2. **Risk guardian**: capital exposure, stop coverage, stale data and circuit breakers. Highest priority.
-3. **Trade auditor/reconciler**: match order IDs, broker fills, rejections, FX/fees, positions and durable journal to prevent duplicates or unsupported profitability claims.
-4. **Coding/debugging agent**: isolated code repair and tests, with no financial write tools.
-5. **Coordinator**: aggregate clear reports with strict AI spending budget; currently intentionally paused.
-6. **Execution agent**: disabled pending formal safety gates and explicit separate go-live consent.
+- Crypto service ID: `3e167414-a5fb-4e62-9688-174ee071fe2a`; source branch `atlas/crypto-paper-20261022`, start `node atlas-crypto-scan.mjs`. Public Coinbase Exchange data, no exchange credentials/order functions.
+- Stock daily service ID: `a1744782-1030-462e-bbcc-9cf3cd673904`; source branch `main`, start `node atlas-stock-daily.mjs`. Public unofficial Yahoo daily data, no broker credentials or order functions.
+- The 40-stock GitHub Actions workflow contains the original schedule but has no recorded runs; GitHub workflow dispatch returned an Actions-disabled error, so the daily Railway cron is the operational substitute.
+- Existing hourly Atlas Railway Health Watch automation has been expanded to check both research cron services and parse structured broker-audit findings.
 
-## Repair checklist
+## Specific blocker to live automated orders
 
-- [ ] Manually review protective-order policy and DEMO stop coverage on all three positions; do not automatically place/cancel orders.
-- [ ] Verify real crypto scanner runtime, feed freshness, bounded logs and fail-closed behaviour; crypto order execution stays disabled.
-- [ ] Reconcile complete broker order history to a durable strategy journal, including fees, cash, FX, partial fills, rejects and restart recovery.
-- [ ] Test caps on order size, daily loss, max open positions, circuit breakers, market hours, quote age, protective stops and order-id deduplication.
-- [ ] Validate a forward paper-trading record net of costs before considering live order permissions.
-- [ ] Independently inspect daily GitHub Actions research runs; make stock, crypto, paused agent and risk warning statuses visible separately.
-- [ ] Rotate/restrict broker credentials at provider if warranted; never store keys in version control.
-- [ ] Obtain fresh explicit authorization before any real-money order execution or activation.
+As of the 08:46 UTC broker audit:
+- DEMO positions: AAPL_US_EQ 1.9341, MSFT_US_EQ 1.2574, GOOGL_US_EQ 1.9038 shares; **pending stop coverage zero for all three**. The main scanner's GOOGL adverse return alert was around -19%, with REVIEW_ONLY action.
+- Broker API read-only GET connectivity to LIVE is verified; there are **0 observed LIVE positions and 0 pending LIVE orders**. Order-writing authority was not established or exercised.
+- `STOP_COVERAGE_REQUIRES_MANUAL_REVIEW`, `stockTradeJournalReconciled:false`, `profitabilityDemonstrated:false` and `liveAutoTradingReady:false` remain.
+- Do not infer that the new research signals prove a profitable strategy, or that a successful cron/build means the trading/execution controls have passed.
 
-This report made **no trading, broker credential, deployment or paid AI activation changes**.
+## Remaining safety and engineering gates
+
+- [ ] Establish approved manual policy for demo protective orders and verify exact quantities, duration, order status, partial fills, slippage and lifecycle (stop orders do not guarantee execution price).
+- [ ] Independently reconcile broker order IDs, fills, rejects, cash, fees, FX and a persisted strategy journal; prove restart-safe idempotency and no duplicate orders.
+- [ ] Test broker/market outage fail-closed behaviour, max position exposure, per-order/day loss limits, stale data/market-hours validation and durable emergency kill switch.
+- [ ] Verify forward out-of-sample paper-trading performance net of spread, fees and slippage; monitoring observations are not a profitability record.
+- [ ] Review code provenance, agent permissions, key rotation and least-privilege API keys; keep demo and live accounts separated.
+- [ ] Obtain explicit separate user authorization before any live order placement or auto-execution, once all checks pass.
+
+**No order execution, credential changes, crypto account access or paid AI agents were enabled in this recovery.**
