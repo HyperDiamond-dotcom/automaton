@@ -65,10 +65,23 @@ async function run() {
         mode:"READ_ONLY_PAPER_SIGNALS",ordersSubmitted:0,executionAllowed:false}));
     }
   }
-  console.log(JSON.stringify({event:"atlas_crypto_summary",selected:selected.length,
-    scanned:selected.length-errors,errors,longWatchSignals:watches,
+  // Isolate bad candles for the affected market; maintain strict per-market validation.
+  // Fail the cron only on a material data outage, not one isolated missing candle.
+  const scanned = selected.length - errors;
+  const minScanned = Math.max(8, Math.ceil(selected.length * 0.8));
+  const status = scanned < minScanned ? "FAILED_DATA_COVERAGE"
+    : errors ? "PARTIAL_SUCCESS" : "OK";
+  console.log(JSON.stringify({event:"atlas_crypto_summary",status,
+    selected:selected.length,scanned,errors,minScanned,longWatchSignals:watches,
     ordersSubmitted:0,executionAllowed:false,realMoney:false}));
-  if (errors) process.exitCode = 1;
+  if (status === "FAILED_DATA_COVERAGE") {
+    console.error(JSON.stringify({event:"atlas_crypto_data_coverage_failed",
+      scanned,selected:selected.length,minScanned,ordersSubmitted:0,executionAllowed:false}));
+    process.exitCode = 1;
+  } else if (errors) {
+    console.warn(JSON.stringify({event:"atlas_crypto_partial_scan",
+      scanned,selected:selected.length,errors,ordersSubmitted:0,executionAllowed:false}));
+  }
 }
 await run().catch(error => {
   console.error(JSON.stringify({event:"atlas_crypto_scan_failed",
