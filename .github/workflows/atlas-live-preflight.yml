@@ -1,0 +1,20 @@
+name: Atlas LIVE read-only preflight tests
+on:
+  push:
+    paths: ['ops/atlas-live-preflight*.mjs', '.github/workflows/atlas-live-preflight.yml']
+  pull_request:
+    paths: ['ops/atlas-live-preflight*.mjs', '.github/workflows/atlas-live-preflight.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check ops/atlas-live-preflight.mjs
+      - run: node --test ops/atlas-live-preflight.test.mjs
