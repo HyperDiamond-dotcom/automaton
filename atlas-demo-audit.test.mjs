@@ -119,3 +119,29 @@ test("never ignores malformed or unlabelled broker positions",()=>{
   assert.equal(report.stopCoverageSharesVerified,false);
   assert.equal(report.executionAllowed,false);
 });
+
+test("overlapping stop quantities cannot be marked as verified protection",()=>{
+  const positions=[{ticker:"AAPL_US_EQ",quantity:10}];
+  const pending=[{ticker:"AAPL_US_EQ",side:"SELL",type:"STOP",
+    quantity:-12,stopPrice:100,status:"CONFIRMED"}];
+  const history=[{ticker:"AAPL_US_EQ",side:"BUY",status:"FILLED",filledQuantity:10}];
+  const report=reconcile(positions,pending,history);
+  assert.ok(report.issues.some(i=>i.code==="OVERLAPPING_STOP_QUANTITIES_REQUIRES_REVIEW"));
+  assert.equal(report.stopCoverageSharesVerified,false);
+  assert.equal(report.executionAllowed,false);
+});
+test("unprotected positions receive a manual-only stop remediation task",()=>{
+  const report=reconcile([{ticker:"GOOGL_US_EQ",quantity:1.5}],[],[]);
+  assert.deepEqual(report.stopProtectionTasks,[{
+    ticker:"GOOGL_US_EQ",unprotectedQuantity:1.5,
+    action:"MANUAL_DEMO_STOP_REVIEW",approvedStopPriceRequired:true,ordersSubmitted:0
+  }]);
+  assert.equal(report.liveReady,false);
+});
+test("duplicate stop orders never establish verified protection",()=>{
+  const positions=[{ticker:"AAPL_US_EQ",quantity:10}];
+  const one={ticker:"AAPL_US_EQ",side:"SELL",type:"STOP",quantity:-5,stopPrice:100,status:"NEW"};
+  const report=reconcile(positions,[one,{...one}],
+    [{ticker:"AAPL_US_EQ",side:"BUY",status:"FILLED",filledQuantity:10}]);
+  assert.equal(report.stopCoverageSharesVerified,false);
+});
