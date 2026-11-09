@@ -68,9 +68,19 @@ export function reconcile(positions, pending, history, incompleteHistory=false) 
   const unprotectedPositions=stopCoverage.filter(p=>p.uncoveredQuantity>1e-7);
   if(unprotectedPositions.length)issues.push({code:"STOP_COVERAGE_REQUIRES_MANUAL_REVIEW",
     tickers:unprotectedPositions.map(p=>p.ticker)});
+  // Multiple or oversized stops can falsely suggest full coverage if summed naively.
+  const overCovered=stopCoverage.filter(p=>p.pendingStopQuantity>p.positionQuantity+1e-7);
+  if(overCovered.length)issues.push({code:"OVERLAPPING_STOP_QUANTITIES_REQUIRES_REVIEW",
+    tickers:overCovered.map(p=>p.ticker)});
+  const ambiguousStops=issues.some(i=>["POTENTIAL_DUPLICATE_PENDING_ORDER",
+    "OVERLAPPING_STOP_QUANTITIES_REQUIRES_REVIEW"].includes(i.code));
+  const stopProtectionTasks=unprotectedPositions.map(p=>({
+    ticker:p.ticker,unprotectedQuantity:p.uncoveredQuantity,
+    action:"MANUAL_DEMO_STOP_REVIEW",approvedStopPriceRequired:true,ordersSubmitted:0
+  }));
   return {mode:"DEMO_READ_ONLY",positionsObserved:current.length,pendingOrdersObserved:pending.length,historyOrdersRetrieved:history.length,brokerFilledOrdersRetrieved:filled.length,historyIncomplete:!!incompleteHistory,issues,stopCoverage,unprotectedPositions,
-    stopCoverageSharesVerified:unprotectedPositions.length===0&&malformedPositions.length===0,
-    stockTradeJournalReconciled:false,strategyJournalStatus:"NO_EXECUTION_JOURNAL_AVAILABLE",
+    stopCoverageSharesVerified:unprotectedPositions.length===0&&malformedPositions.length===0&&!ambiguousStops,
+    stopProtectionTasks,stockTradeJournalReconciled:false,strategyJournalStatus:"NO_EXECUTION_JOURNAL_AVAILABLE",
     profitabilityDemonstrated:false,profitabilityStatus:"NOT_DEMONSTRATED",executionAllowed:false,liveReady:false};
 }
 export async function runAudit(credentials,fetcher=fetch,opts={}){

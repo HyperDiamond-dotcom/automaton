@@ -9,6 +9,13 @@ let riskFindings=0;
 try{
   const demo=await runAudit(demoCredentials);
   console.log(JSON.stringify({event:"atlas_demo_broker_audit",...demo}));
+  if(demo.unprotectedPositions.length){
+    console.error(JSON.stringify({event:"atlas_demo_unprotected_positions",
+      severity:"CRITICAL",positions:demo.unprotectedPositions,
+      stopProtectionTasks:demo.stopProtectionTasks,
+      approvedStopPricesRequired:true,ordersSubmitted:0,
+      executionAllowed:false,liveAutoTradingReady:false}));
+  }
   if(demo.issues.length){
     riskFindings=demo.issues.length;
     console.warn(JSON.stringify({event:"atlas_demo_risk_findings",status:"REVIEW_REQUIRED",issues:demo.issues,
@@ -37,4 +44,5 @@ console.log(JSON.stringify({event:"atlas_broker_control_summary",
   auditFailures:failures+riskFindings,auditExecutionFailures:failures,riskFindings,
   riskStatus:failures?"CHECK_FAILED":riskFindings?"REVIEW_REQUIRED":"NO_FLAGGED_DEMO_RISK_ISSUES",
   automaticOrdersEnabled:false,liveAutoTradingReady:false}));
-if(failures)process.exitCode=1;
+// A completed audit is not a safety pass: risk findings must fail the scheduled check.
+if(failures||riskFindings)process.exitCode=1;
