@@ -97,7 +97,7 @@ export function simulateAtlas(rows, {startingCash=1000, feeBps=60, slippageBps=1
     lastTestedBar:new Date(last.time*1000).toISOString(),barsTested:candles.length-startIndex,
     startingCash,finalCash:round(cash),netReturnPct:round(100*(cash/startingCash-1),3),
     buyHoldPct:round(100*(baselineNet-1),3),maxDrawdownPct:round(maxDrawdown,3),
-    signals:signalCount,trades:trades.length,winRatePct:trades.length?round(100*winners.length/trades.length,2):null,
+    signals:signalCount,tradeCount:trades.length,winRatePct:trades.length?round(100*winners.length/trades.length,2):null,
     profitFactor:grossLosses?round(grossWins/grossLosses,3):null,
     feesPaid:round(feesPaid), assumptions:{feeBps,slippageBps,maxExposurePct,riskPerTradePct,maxHoldBars,
       exitPriority:'stop before target',fill:'next bar open'},

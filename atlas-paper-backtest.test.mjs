@@ -13,6 +13,7 @@ test('no-lookahead simulation is valid on sequential candles',()=>{
   const res=simulateAtlas(fixture());
   assert.equal(res.executionAllowed,false);assert.equal(res.ordersSubmitted,0);
   assert.equal(res.mode,'BACKTEST_ONLY_NO_ORDERS');
+  assert.equal(res.tradeCount,res.trades.length);
   assert.equal(res.barsTested,250);
   assert.ok(Number.isFinite(res.finalCash));
   assert.equal(res.maxDrawdownPct>=0,true);
