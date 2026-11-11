@@ -1,0 +1,17 @@
+name: Research trend candidates (offline)
+on:
+  push:
+    paths: ['research/trend-candidates/**', '.github/workflows/trend-candidates.yml']
+  pull_request:
+    paths: ['research/trend-candidates/**', '.github/workflows/trend-candidates.yml']
+jobs:
+  research-tests:
+    runs-on: ubuntu-latest
+    permissions: {contents: read}
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check research/trend-candidates/study.mjs
+      - run: node --test research/trend-candidates/*.test.mjs
