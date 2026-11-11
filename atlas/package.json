@@ -1,0 +1,15 @@
+{
+  "name": "atlas-crypto-paper",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node crypto-paper.mjs run",
+    "build": "node --check crypto-paper.mjs && node --check atlas-council.mjs && node --check crypto-backtest.mjs && node --check stock-orders-audit.mjs && node --test ./*.test.mjs",
+    "test": "node --test ./*.test.mjs",
+    "backtest": "node crypto-backtest.mjs 30"
+  }
+}
