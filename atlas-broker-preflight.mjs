@@ -1,0 +1,48 @@
+// Atlas brokerage readiness: two independent READ-ONLY checks, never places orders.
+import {runAudit} from "./atlas-demo-audit-core.mjs";
+import {livePreflight} from "./ops/atlas-live-preflight.mjs";
+
+const demoCredentials={key:process.env.T212_API_KEY,secret:process.env.T212_API_SECRET};
+const liveCredentials={key:process.env.T212_LIVE_API_KEY,secret:process.env.T212_LIVE_API_SECRET};
+let failures=0;
+let riskFindings=0;
+try{
+  const demo=await runAudit(demoCredentials);
+  console.log(JSON.stringify({event:"atlas_demo_broker_audit",...demo}));
+  if(demo.unprotectedPositions.length){
+    console.error(JSON.stringify({event:"atlas_demo_unprotected_positions",
+      severity:"CRITICAL",positions:demo.unprotectedPositions,
+      stopProtectionTasks:demo.stopProtectionTasks,
+      approvedStopPricesRequired:true,ordersSubmitted:0,
+      executionAllowed:false,liveAutoTradingReady:false}));
+  }
+  if(demo.issues.length){
+    riskFindings=demo.issues.length;
+    console.warn(JSON.stringify({event:"atlas_demo_risk_findings",status:"REVIEW_REQUIRED",issues:demo.issues,
+      executionAllowed:false,liveAutoTradingReady:false}));
+  }
+}catch(error){
+  failures++;
+  console.error(JSON.stringify({event:"atlas_demo_broker_audit_failed",
+    reason:String(error?.message??error),ordersSubmitted:0,executionAllowed:false}));
+}
+if(liveCredentials.key&&liveCredentials.secret){
+  try{
+    const live=await livePreflight(liveCredentials);
+    console.log(JSON.stringify({event:"atlas_live_connection_preflight",...live}));
+  }catch(error){
+    failures++;
+    console.error(JSON.stringify({event:"atlas_live_connection_preflight_failed",
+      reason:String(error?.message??error),brokerOrderWrites:0,automaticOrdersEnabled:false}));
+  }
+}else{
+  console.log(JSON.stringify({event:"atlas_live_connection_preflight",
+    status:"WAITING_FOR_DISTINCT_READ_ONLY_LIVE_KEYS",
+    brokerOrderWrites:0,automaticOrdersEnabled:false,liveAutoTradingReady:false}));
+}
+console.log(JSON.stringify({event:"atlas_broker_control_summary",
+  auditFailures:failures+riskFindings,auditExecutionFailures:failures,riskFindings,
+  riskStatus:failures?"CHECK_FAILED":riskFindings?"REVIEW_REQUIRED":"NO_FLAGGED_DEMO_RISK_ISSUES",
+  automaticOrdersEnabled:false,liveAutoTradingReady:false}));
+// A completed audit is not a safety pass: risk findings must fail the scheduled check.
+if(failures||riskFindings)process.exitCode=1;
