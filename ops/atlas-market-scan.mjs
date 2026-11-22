@@ -1,3 +1,4 @@
+import { gettexResearch } from './atlas-gettex.mjs';
 import { marketCatalogue } from './atlas-live-preflight.mjs';
 
 // Use the broker's display symbol and venue together. Internal tickers can lag renames.
@@ -48,7 +49,8 @@ export function readQuote(stock, data, now) {
   if (!Number.isFinite(session?.start) || !Number.isFinite(session?.end)) return {status:'NO_SESSION'};
   if (now < session.start || now >= session.end) return { status:'CLOSED' };
   const age = now-m.regularMarketTime;
-  if (!Number.isFinite(age) || age < 0 || age > 600 || m.exchangeDataDelayedBy > 0) return {status:'DELAYED_OR_STALE'};
+  if (!Number.isFinite(age) || age < 0 || age > 1800 || m.regularMarketTime < session.start) return {status:'DELAYED_OR_STALE'};
+  const delayed = age > 600 || m.exchangeDataDelayedBy > 0;
   const first = data.timestamp?.findIndex(t => t >= session.start && t < session.start+300);
   const openingBarClose = data.indicators?.quote?.[0]?.close?.[first];
   const last = m.regularMarketPrice, high = m.regularMarketDayHigh;
@@ -57,7 +59,7 @@ export function readQuote(stock, data, now) {
   const gain = last/openingBarClose-1, pullback = 1-last/high;
   const status = gain >= .05 && pullback <= .01 ? 'STRENGTH' :
     high/openingBarClose >= 1.05 && pullback >= .03 ? 'RALLY_FADING' : 'WATCH';
-  return { status, changeFromOpeningBarPct:+(gain*100).toFixed(2), belowHighPct:+(pullback*100).toFixed(2),
+  return { status: delayed ? 'DELAYED_'+status : status, changeFromOpeningBarPct:+(gain*100).toFixed(2), belowHighPct:+(pullback*100).toFixed(2),
     quoteAt:new Date(m.regularMarketTime*1000).toISOString() };
 }
 
@@ -69,7 +71,28 @@ export async function scanMarkets(credentials, log = console.log, transport = fe
     const counts = coverage[stock.venue] ??= {};
     counts[status] = (counts[status] ?? 0)+1;
   }
+  const gettex = stocks.filter(s => s.venue === 'Gettex');
+  if (gettex.length) {
+    let feed;
+    try { feed = await gettexResearch(gettex,clock(),transport); }
+    catch (error) { feed = { trades:new Map(), status:'GETTEX_FEED_UNAVAILABLE' };
+      log(JSON.stringify({event:'atlas_gettex_feed_issue',reason:error.message})); }
+    for (const stock of gettex) {
+      const t=feed.trades.get(stock.isin);
+      if (!t || t.ambiguous) { record(stock,t?'AMBIGUOUS_TRADE':feed.status); continue; }
+      if (stock.session==='CLOSED' || clock()-t.last>30*60000 || t.first===t.last) {
+        record(stock,'HISTORICAL_TRADES'); continue;
+      }
+      const gain=t.latest/t.open-1, pullback=1-t.latest/t.high;
+      const status=gain>=.05 && pullback<=.01 ? 'DELAYED_STRENGTH' :
+        t.high/t.open>=1.05 && pullback>=.03 ? 'DELAYED_RALLY_FADING' : 'DELAYED_WATCH';
+      record(stock,status);
+      if (status!=='DELAYED_WATCH') signals.push({ticker:stock.ticker,venue:stock.venue,status,
+        quoteAt:new Date(t.last).toISOString(),changeFromFirstReportedTradePct:+(gain*100).toFixed(2)});
+    }
+  }
   for (const s of stocks) {
+    if (s.venue==='Gettex') continue;
     if (!s.symbol) { record(s,'NO_VENUE_PRICE_MAPPING'); continue; }
     if (s.session === 'CLOSED') { record(s,'CLOSED'); continue; }
     if (!pending.has(s.symbol)) pending.set(s.symbol,[]);
@@ -99,7 +122,7 @@ export async function scanMarkets(credentials, log = console.log, transport = fe
       for (const symbol of batch) for (const stock of pending.get(symbol)) {
         const result = error ? {status:error} : readQuote(stock,quotes.get(symbol),clock()/1000);
         record(stock,result.status);
-        if (['STRENGTH','RALLY_FADING'].includes(result.status)) signals.push({ticker:stock.ticker,venue:stock.venue,...result});
+        if (['STRENGTH','RALLY_FADING','DELAYED_STRENGTH','DELAYED_RALLY_FADING'].includes(result.status)) signals.push({ticker:stock.ticker,venue:stock.venue,...result});
       }
       await new Promise(resolve => setTimeout(resolve,250));
     }
