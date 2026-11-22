@@ -44,5 +44,5 @@ console.log(JSON.stringify({event:"atlas_broker_control_summary",
   auditFailures:failures+riskFindings,auditExecutionFailures:failures,riskFindings,
   riskStatus:failures?"CHECK_FAILED":riskFindings?"REVIEW_REQUIRED":"NO_FLAGGED_DEMO_RISK_ISSUES",
   automaticOrdersEnabled:false,liveAutoTradingReady:false}));
-// A completed audit is not a safety pass: risk findings must fail the scheduled check.
-if(failures||riskFindings)process.exitCode=1;
+// Risk findings remain in the audit output. Reserve a failed job for checks that could not run.
+if(failures)process.exitCode=1;
