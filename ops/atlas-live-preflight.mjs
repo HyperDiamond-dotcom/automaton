@@ -48,6 +48,7 @@ export async function livePreflight(credentials, transport = fetch, pause = ms =
     checkedAt: new Date().toISOString(),
     liveBrokerReachable: true,
     positionsObserved: positions.length,
+    heldTickers: [...new Set(positions.map(p => p?.instrument?.ticker ?? p?.ticker).filter(Boolean))],
     pendingOrdersObserved: orders.length,
     brokerOrderWrites: 0,
     automaticOrdersEnabled: false,

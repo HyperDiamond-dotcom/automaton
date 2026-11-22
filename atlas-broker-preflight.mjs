@@ -2,6 +2,8 @@
 import {runAudit} from "./atlas-demo-audit-core.mjs";
 import {livePreflight} from "./ops/atlas-live-preflight.mjs";
 
+import { scanHolding } from "./ops/atlas-intraday-strength.mjs";
+
 const demoCredentials={key:process.env.T212_API_KEY,secret:process.env.T212_API_SECRET};
 const liveCredentials={key:process.env.T212_LIVE_API_KEY,secret:process.env.T212_LIVE_API_SECRET};
 let failures=0;
@@ -30,6 +32,9 @@ if(liveCredentials.key&&liveCredentials.secret){
   try{
     const live=await livePreflight(liveCredentials);
     console.log(JSON.stringify({event:"atlas_live_connection_preflight",...live}));
+    for (const ticker of live.heldTickers) {
+      console.log(JSON.stringify({event:"atlas_live_holding_strength", ...await scanHolding(ticker)}));
+    }
   }catch(error){
     failures++;
     console.error(JSON.stringify({event:"atlas_live_connection_preflight_failed",
