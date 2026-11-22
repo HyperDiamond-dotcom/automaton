@@ -35,7 +35,7 @@ export function listStocks({ instruments, exchanges }, now) {
     const { venue, session } = schedules.get(i.workingScheduleId) ?? { venue: 'UNKNOWN', session: 'UNKNOWN' };
     const spec = venues.get(venue);
     const code = i.shortName?.trim().toUpperCase().replace(/[./ ]/g,'-').replace(/-$/,'');
-    return { ticker:i.ticker, isin:i.isin, currency:i.currencyCode, venue, session,
+    return { ticker:i.ticker, name:i.name, isin:i.isin, currency:i.currencyCode, venue, session,
       symbol: spec && /^[A-Z0-9-]+$/.test(code || '') ? code+spec[0] : null };
   });
 }
@@ -60,10 +60,10 @@ export function readQuote(stock, data, now) {
   const status = gain >= .05 && pullback <= .01 ? 'STRENGTH' :
     high/openingBarClose >= 1.05 && pullback >= .03 ? 'RALLY_FADING' : 'WATCH';
   return { status: delayed ? 'DELAYED_'+status : status, changeFromOpeningBarPct:+(gain*100).toFixed(2), belowHighPct:+(pullback*100).toFixed(2),
-    quoteAt:new Date(m.regularMarketTime*1000).toISOString() };
+    price:last, sessionEnd:session.end*1000, quoteAt:new Date(m.regularMarketTime*1000).toISOString() };
 }
 
-export async function scanMarkets(credentials, log = console.log, transport = fetch, clock = Date.now) {
+export async function scanMarkets(credentials, log = console.log, transport = fetch, clock = Date.now, observations = []) {
   const stocks = listStocks(await marketCatalogue(credentials, transport),clock());
   if (!stocks.length) throw Error('No stock listings in broker catalogue');
   const coverage = {}, pending = new Map(), signals = [];
@@ -122,6 +122,8 @@ export async function scanMarkets(credentials, log = console.log, transport = fe
       for (const symbol of batch) for (const stock of pending.get(symbol)) {
         const result = error ? {status:error} : readQuote(stock,quotes.get(symbol),clock()/1000);
         record(stock,result.status);
+        if (stock.session === 'OPEN' && ['STRENGTH','WATCH','RALLY_FADING'].includes(result.status))
+          observations.push({...stock,...result});
         if (['STRENGTH','RALLY_FADING','DELAYED_STRENGTH','DELAYED_RALLY_FADING'].includes(result.status)) signals.push({ticker:stock.ticker,venue:stock.venue,...result});
       }
       await new Promise(resolve => setTimeout(resolve,250));

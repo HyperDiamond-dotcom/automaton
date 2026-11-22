@@ -48,14 +48,19 @@ if(liveCredentials.key&&liveCredentials.secret){
 console.log(JSON.stringify({event:"atlas_broker_control_summary",
   auditFailures:failures+riskFindings,auditExecutionFailures:failures,riskFindings,
   riskStatus:failures?"CHECK_FAILED":riskFindings?"REVIEW_REQUIRED":"NO_FLAGGED_DEMO_RISK_ISSUES",
-  automaticOrdersEnabled:false,liveAutoTradingReady:false}));
+  auditCanSubmitOrders:false,configuredStrategyMode:process.env.ATLAS_MODE??"PREVIEW"}));
 // Risk findings remain in the audit output. Reserve a failed job for checks that could not run.
 if(failures)process.exitCode=1;
 
 if (liveCredentials.key && liveCredentials.secret) {
   try {
     const { scanMarkets } = await import('./ops/atlas-market-scan.mjs');
-    await scanMarkets(liveCredentials);
+    const observations=[];
+    await scanMarkets(liveCredentials,console.log,fetch,Date.now,observations);
+    const {runWealth}=await import('./ops/atlas-wealth.mjs');
+    const decision=failures ? {mode:process.env.ATLAS_MODE??'PREVIEW',status:'BROKER_CHECK_FAILED',ordersSubmitted:0}
+      : await runWealth(observations);
+    console.log(JSON.stringify({event:'atlas_wealth_execution',...decision}));
   } catch (error) {
     console.error(JSON.stringify({event:'atlas_market_scan_failed',reason:error.message}));
     process.exitCode = 1;

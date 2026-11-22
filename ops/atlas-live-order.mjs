@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 const base = 'https://live.trading212.com/api/v0/equity';
 export async function submitApprovedLimit(intent, env, transport = fetch) {
+  if (env.ATLAS_MODE !== 'LIVE') throw Error('Live execution is off');
   const { id, accountId, ticker, quantity, limitPrice, expiresAt } = intent;
   if (typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(id) ||
       typeof accountId !== 'string' || !/^\d+$/.test(accountId) ||

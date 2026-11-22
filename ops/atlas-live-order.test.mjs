@@ -8,7 +8,7 @@ import { submitApprovedLimit } from './atlas-live-order.mjs';
 test('live approvals are account-bound, time-limited and survive an ambiguous POST', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'atlas-orders-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  const env = { T212_LIVE_API_KEY: 'fixture', T212_LIVE_API_SECRET: 'fixture', ATLAS_LIVE_JOURNAL_DIR: dir };
+  const env = { ATLAS_MODE:'LIVE', T212_LIVE_API_KEY: 'fixture', T212_LIVE_API_SECRET: 'fixture', ATLAS_LIVE_JOURNAL_DIR: dir };
   const intent = { id: 'order1', accountId: '123', ticker: 'TEST_EQ', quantity: -0.5, limitPrice: 10, expiresAt: new Date(Date.now()+60000).toISOString() };
   let posts = 0;
   async function broker(url, options) {
@@ -21,6 +21,7 @@ test('live approvals are account-bound, time-limited and survive an ambiguous PO
     return Response.json({ id: 17, status: 'NEW' });
   }
   const run = changes => submitApprovedLimit({ ...intent, ...changes }, env, broker);
+  await assert.rejects(submitApprovedLimit(intent,{...env,ATLAS_MODE:'PREVIEW'},broker), /execution is off/);
   await assert.rejects(run({ accountId: '321' }), /verification failed/);
   await assert.rejects(run({ id: 'expired', expiresAt: new Date(0).toISOString() }), /expired/);
   await assert.rejects(run({ quantity: 1 }), /Invalid/);
