@@ -51,3 +51,13 @@ console.log(JSON.stringify({event:"atlas_broker_control_summary",
   automaticOrdersEnabled:false,liveAutoTradingReady:false}));
 // Risk findings remain in the audit output. Reserve a failed job for checks that could not run.
 if(failures)process.exitCode=1;
+
+if (liveCredentials.key && liveCredentials.secret) {
+  try {
+    const { scanMarkets } = await import('./ops/atlas-market-scan.mjs');
+    await scanMarkets(liveCredentials);
+  } catch (error) {
+    console.error(JSON.stringify({event:'atlas_market_scan_failed',reason:error.message}));
+    process.exitCode = 1;
+  }
+}

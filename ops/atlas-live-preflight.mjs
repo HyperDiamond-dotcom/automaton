@@ -6,7 +6,9 @@ const BASE = "https://live.trading212.com/api/v0";
 const ENDPOINTS = Object.freeze({
   summary: "/equity/account/summary",
   positions: "/equity/positions",
-  orders: "/equity/orders"
+  orders: "/equity/orders",
+  instruments: "/equity/metadata/instruments",
+  exchanges: "/equity/metadata/exchanges"
 });
 
 export function readOnlyUrl(path) {
@@ -30,6 +32,14 @@ async function getLive(path, credentials, transport) {
   if (!response?.ok) throw Error("live_api_http_" + (response?.status ?? "unknown"));
   try { return await response.json(); }
   catch { throw Error("invalid_live_api_json"); }
+}
+
+export async function marketCatalogue(credentials, transport = fetch) {
+  const instruments = await getLive(ENDPOINTS.instruments, credentials, transport);
+  const exchanges = await getLive(ENDPOINTS.exchanges, credentials, transport);
+  if (!Array.isArray(instruments) || !instruments.length || !Array.isArray(exchanges) || !exchanges.length)
+    throw Error("empty_market_catalogue");
+  return { instruments, exchanges };
 }
 
 export async function livePreflight(credentials, transport = fetch, pause = ms => new Promise(r => setTimeout(r, ms))) {
