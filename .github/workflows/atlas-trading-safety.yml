@@ -1,0 +1,38 @@
+name: Atlas Trading Safety Suite
+on:
+  push:
+    branches:
+      - atlas/demo-audit-20261023
+      - atlas/safety-gate-20261123
+    paths:
+      - 'atlas-*.mjs'
+      - 'ops/atlas-*.mjs'
+      - '.github/workflows/atlas-trading-safety.yml'
+  pull_request:
+    branches:
+      - atlas/demo-audit-20261023
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  broker-and-strategy-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ATLAS_MODE: PREVIEW
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check atlas-broker-preflight.mjs
+          node --check ops/atlas-wealth.mjs
+          node --check ops/atlas-market-scan.mjs
+      - name: Offline risk, data and execution tests
+        run: |
+          node --test atlas-demo-audit.test.mjs ops/atlas-live-preflight.test.mjs ops/atlas-intraday-strength.test.mjs ops/atlas-market-scan.test.mjs ops/atlas-live-order.test.mjs ops/atlas-wealth.test.mjs
