@@ -22,3 +22,13 @@ Input: JSON array of regular full trading sessions, each an array of 78 chronolo
 ## Validation status
 
 Eight deterministic synthetic assertions passed in a JavaScript evaluation of the research functions before upload. The Node CLI wrapper and repository CI have not yet been verified. Synthetic fixtures are not evidence of profitability. No real historical backtest, walk-forward split, benchmark, independently reproduced strategy rules, or market-calendar validation yet. Before further review, obtain licensed historical data, verify the source strategy, fix the input/calendar limitations, compare against a suitable benchmark, run fixed parameters on an untouched out-of-sample period and stress costs and gaps. No live deployment or trading authorization implied.
+
+## CSV evaluation and cost stress test
+
+```sh
+node research/atlas-opening-bell-evaluate.mjs --self-test
+node research/atlas-opening-bell-evaluate.mjs data.csv 100
+```
+CSV must be unquoted, comma-separated, header row `timestamp,open,high,low,close` (extra columns permitted); timestamps must be explicit ISO offsets or UTC, marking five-minute bar starts. Extended hours are ignored; malformed, duplicate, unsorted or incomplete regular sessions are rejected. Verify full exchange-calendar coverage and remove documented early-close dates before evaluation. The second argument is the number of earlier sessions; the later chronological segment starts with fresh simulated cash and fixed rules. The evaluator compares both segments with a price-only cash-constrained buy-and-hold benchmark, and reruns the later segment at double modeled friction. The split is not necessarily an independently held-out test; freeze it before inspecting results. Nine extra synthetic assertions passed in JavaScript evaluation, alongside the original eight. Node CLI and full repository CI are not yet verified.
+
+Candidate data: FirstRate Data QQQ free historical sample (https://firstratedata.com/i/etf/QQQ). The provider download was inaccessible during this review; no historical prices were retrieved or committed. Its native no-header CSV and timestamp timezone must be verified and converted to the required input schema before use. QQQ is a research proxy; UK retail eligibility and actual Trading 212 instrument availability, costs and FX remain unverified. No live readiness claim.
